@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>90D 健康打卡</title>
+<style>
+  :root{
+    --bg:#F3F6EE;          /* 帶綠的暖白底 */
+    --ink:#1C3B2E;         /* 深森林綠：主要文字 */
+    --muted:#6B7D70;       /* 次要文字 */
+    --line:#DCE5D6;        /* 分隔線 */
+    --card:#FFFFFF;        /* 卡片 */
+    --primary:#1F9E63;     /* 行動綠：主要按鈕 */
+    --primary-d:#177A4C;   /* 行動綠 深 */
+    --amber:#E29A2E;       /* 琥珀：連續/亮點 */
+    --danger:#C4463A;      /* 刪除 */
+    --shadow:0 8px 24px rgba(28,59,46,.08);
+    --radius:16px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;
+    line-height:1.6;-webkit-font-smoothing:antialiased;
+    min-height:100vh;
+  }
+  .wrap{max-width:520px;margin:0 auto;padding:16px 16px 48px;min-height:100vh;display:flex;flex-direction:column}
+
+  /* 頁首 */
+  .top{display:flex;align-items:center;gap:10px;padding:6px 2px 14px}
+  .logo{font-weight:800;font-size:19px;letter-spacing:.5px}
+  .logo .d90{color:var(--primary)}
+  .top .spacer{flex:1}
+  .backbtn{border:none;background:transparent;color:var(--muted);font-size:15px;padding:8px;cursor:pointer;display:none}
+  .backbtn.show{display:inline-block}
+
+  .screen{display:none;flex:1;animation:fade .25s ease}
+  .screen.active{display:flex;flex-direction:column}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  /* 首頁英雄 */
+  .hero{text-align:center;padding:22px 8px 8px}
+  .hero .ring{
+    width:132px;height:132px;margin:0 auto 18px;border-radius:50%;
+    background:conic-gradient(var(--primary) 0 72%, #E6EEDF 72% 100%);
+    display:grid;place-items:center;position:relative;
+  }
+  .hero .ring::before{content:"";position:absolute;inset:11px;border-radius:50%;background:var(--card)}
+  .hero .ring b{position:relative;font-size:34px;font-weight:800;color:var(--ink)}
+  .hero .ring b small{font-size:14px;font-weight:600;color:var(--muted);display:block;margin-top:-4px}
+  .hero h1{font-size:24px;margin:4px 0 6px}
+  .hero p{color:var(--muted);margin:0 0 4px;font-size:15px}
+
+  .stack{display:flex;flex-direction:column;gap:14px;margin-top:22px}
+  .bigbtn{
+    display:flex;align-items:center;gap:14px;text-align:left;
+    background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:20px 18px;box-shadow:var(--shadow);cursor:pointer;width:100%;
+    transition:transform .12s ease, border-color .12s ease;
+  }
+  .bigbtn:active{transform:scale(.98)}
+  .bigbtn .ic{
+    width:48px;height:48px;border-radius:12px;flex-shrink:0;display:grid;place-items:center;
+    font-size:24px;background:#EAF4EC;color:var(--primary)
+  }
+  .bigbtn .tx b{display:block;font-size:18px}
+  .bigbtn .tx span{color:var(--muted);font-size:13.5px}
+  .bigbtn.alt .ic{background:#FBF0DC;color:var(--amber)}
+
+  /* 表單 */
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px;margin-top:6px}
+  .card h2{margin:0 0 4px;font-size:20px}
+  .card .sub{color:var(--muted);font-size:14px;margin:0 0 18px}
+  label{display:block;font-weight:700;font-size:14px;margin:16px 0 6px}
+  label .req{color:var(--danger)}
+  select,input[type=text]{
+    width:100%;padding:14px;font-size:16px;border:1.5px solid var(--line);border-radius:12px;
+    background:#FBFCF9;color:var(--ink);appearance:none;font-family:inherit
+  }
+  select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%236B7D70' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:40px}
+  select:disabled{opacity:.5}
+  select:focus,input:focus{outline:none;border-color:var(--primary)}
+  .btn{
+    width:100%;margin-top:22px;padding:16px;font-size:17px;font-weight:800;color:#fff;
+    background:var(--primary);border:none;border-radius:12px;cursor:pointer;font-family:inherit;
+    transition:background .12s ease,transform .12s ease
+  }
+  .btn:active{transform:scale(.99);background:var(--primary-d)}
+  .btn:disabled{background:#B7C9BC;cursor:not-allowed}
+  .btn.ghost{background:transparent;color:var(--primary);border:1.5px solid var(--primary)}
+  .btn.danger{background:var(--danger)}
+  .btn.sm{width:auto;padding:8px 14px;font-size:14px;margin:0}
+
+  .hint{font-size:13px;color:var(--muted);margin-top:10px;text-align:center}
+  .msg{padding:12px 14px;border-radius:10px;font-size:14px;margin-top:14px;display:none}
+  .msg.err{background:#FBE9E7;color:#8E2B22;display:block}
+  .msg.ok{background:#E7F4EC;color:#177A4C;display:block}
+
+  /* 打卡完成 / 成功狀態 */
+  .done{text-align:center;padding:14px 8px}
+  .done .big{font-size:56px;line-height:1}
+  .done h2{margin:14px 0 4px;font-size:22px}
+  .done .who{color:var(--muted);font-size:14px;margin:0 0 18px}
+  .progress{background:#E9EFE4;border-radius:99px;height:14px;overflow:hidden;margin:6px 0}
+  .progress i{display:block;height:100%;background:linear-gradient(90deg,var(--primary),#3CBE80);border-radius:99px;transition:width .6s ease}
+  .prog-lbl{font-size:14px;color:var(--ink);font-weight:700;margin-top:8px}
+  .prog-lbl b{color:var(--primary);font-size:19px}
+
+  /* 後台 */
+  .tabs{display:flex;gap:6px;background:#E9EFE4;padding:5px;border-radius:12px;margin:2px 0 16px}
+  .tabs button{flex:1;border:none;background:transparent;padding:10px;border-radius:9px;font-size:14px;font-weight:700;color:var(--muted);cursor:pointer;font-family:inherit}
+  .tabs button.on{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.06)}
+  .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .stat .n{font-size:26px;font-weight:800}
+  .stat .n.g{color:var(--primary)} .stat .n.a{color:var(--amber)}
+  .stat .l{font-size:12.5px;color:var(--muted)}
+  .filters{display:flex;gap:8px;margin-bottom:12px}
+  .filters select{padding:10px;font-size:14px}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;background:var(--card);border-radius:12px;overflow:hidden}
+  th,td{padding:10px 8px;text-align:left;border-bottom:1px solid var(--line)}
+  th{background:#EEF3E9;font-size:12px;color:var(--muted);font-weight:700}
+  td .pill{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700}
+  .pill.yes{background:#E7F4EC;color:#177A4C}.pill.no{background:#FBE9E7;color:#8E2B22}
+  .rowbtn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 9px;font-size:12px;cursor:pointer;margin-right:4px;font-family:inherit}
+  .rowbtn.del{color:var(--danger);border-color:#F0C9C4}
+  .empty{text-align:center;color:var(--muted);padding:30px 10px;font-size:14px}
+  .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+  .setup{background:#FFF7E6;border:1px solid #F0D9A0;border-radius:12px;padding:18px;font-size:14px;line-height:1.7}
+  .setup b{color:#8A6100}
+  .setup code{background:#F3E7C4;padding:1px 6px;border-radius:5px;font-size:13px}
+  .foot{text-align:center;color:var(--muted);font-size:12px;padding-top:22px;margin-top:auto}
+  .loading{text-align:center;color:var(--muted);padding:30px;font-size:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="logo"><span class="d90">90D</span> 健康打卡</div>
+    <div class="spacer"></div>
+    <button class="backbtn" id="backBtn" onclick="goHome()">← 回首頁</button>
+  </div>
+
+  <!-- 尚未設定 Firebase 的提示 -->
+  <div class="screen" id="scr-setup">
+    <div class="setup">
+      <b>⚙️ 還沒設定好，先完成這一步</b><br><br>
+      這個檔案需要一個 Firebase 專案來存打卡資料。請打開原始碼，找到最上面的
+      <code>firebaseConfig</code>，把你 Firebase 專案的設定貼進去（<code>PASTE_...</code> 那幾行）。<br><br>
+      設定完成後重新整理，就會進入正常畫面。詳細步驟看我在對話裡給你的說明。
+    </div>
+  </div>
+
+  <!-- 首頁 -->
+  <div class="screen" id="scr-home">
+    <div class="hero">
+      <div class="ring"><b>90<small>DAYS</small></b></div>
+      <h1>90 天，一起養成習慣</h1>
+      <p>每天一次，紀錄你的健康行動</p>
+    </div>
+    <div class="stack">
+      <button class="bigbtn" onclick="goRegister()">
+        <div class="ic">✍️</div>
+        <div class="tx"><b>我要註冊</b><span>第一次參加，先建立你的資料</span></div>
+      </button>
+      <button class="bigbtn alt" onclick="goCheckin()">
+        <div class="ic">✅</div>
+        <div class="tx"><b>我已註冊</b><span>找到自己，完成今日打卡</span></div>
+      </button>
+    </div>
+    <div class="foot">
+      <button class="rowbtn" onclick="goAdmin()" style="opacity:.7">管理者入口</button>
+    </div>
+  </div>
+
+  <!-- 註冊 -->
+  <div class="screen" id="scr-register">
+    <div class="card">
+      <h2>我要註冊</h2>
+      <p class="sub">選好你的區域與大C，填上全名即可</p>
+      <label>區域 <span class="req">*</span></label>
+      <select id="reg-region" onchange="fillBigC('reg')"><option value="">請選擇區域</option></select>
+      <label>大C <span class="req">*</span></label>
+      <select id="reg-bigc" disabled><option value="">請先選區域</option></select>
+      <label>你的全名 <span class="req">*</span></label>
+      <input type="text" id="reg-name" placeholder="請填完整姓名，避免同名混淆" maxlength="20">
+      <div class="msg" id="reg-msg"></div>
+      <button class="btn" id="reg-btn" onclick="submitRegister()">完成註冊</button>
+    </div>
+  </div>
+
+  <!-- 打卡 -->
+  <div class="screen" id="scr-checkin">
+    <div class="card" id="checkin-form">
+      <h2>今日打卡</h2>
+      <p class="sub">選出你自己，只能打今天的卡</p>
+      <label>區域 <span class="req">*</span></label>
+      <select id="ck-region" onchange="fillBigC('ck')"><option value="">請選擇區域</option></select>
+      <label>大C <span class="req">*</span></label>
+      <select id="ck-bigc" disabled onchange="loadMembers()"><option value="">請先選區域</option></select>
+      <label>你的名字 <span class="req">*</span></label>
+      <select id="ck-name" disabled onchange="onPickMember()"><option value="">請先選大C</option></select>
+      <div id="ck-content-wrap" style="display:none">
+        <label>今日打卡內容 <span class="req">*</span></label>
+        <select id="ck-content"><option value="">請選擇</option></select>
+      </div>
+      <div class="msg" id="ck-msg"></div>
+      <button class="btn" id="ck-btn" onclick="submitCheckin()" disabled>送出打卡</button>
+    </div>
+
+    <!-- 打卡成功 / 今日已打 -->
+    <div class="card" id="checkin-done" style="display:none">
+      <div class="done">
+        <div class="big" id="done-emoji">🎉</div>
+        <h2 id="done-title">打卡完成！</h2>
+        <p class="who" id="done-who"></p>
+        <div class="progress"><i id="done-bar" style="width:0%"></i></div>
+        <div class="prog-lbl">已累積 <b id="done-count">0</b> 天 / 90 天</div>
+        <button class="btn ghost" style="margin-top:22px" onclick="goHome()">回首頁</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 管理者：登入 -->
+  <div class="screen" id="scr-admin-login">
+    <div class="card">
+      <h2>管理者入口</h2>
+      <p class="sub">請輸入管理者密碼</p>
+      <label>密碼</label>
+      <input type="text" id="admin-pw" placeholder="請輸入密碼" autocomplete="off" onkeydown="if(event.key==='Enter')adminLogin()">
+      <div class="msg" id="admin-msg"></div>
+      <button class="btn" onclick="adminLogin()">進入後台</button>
+    </div>
+  </div>
+
+  <!-- 管理者：後台 -->
+  <div class="screen" id="scr-admin">
+    <div class="tabs">
+      <button id="tab-stat" class="on" onclick="switchTab('stat')">統計總覽</button>
+      <button id="tab-rec" onclick="switchTab('rec')">打卡紀錄</button>
+      <button id="tab-mem" onclick="switchTab('mem')">註冊名單</button>
+    </div>
+
+    <!-- 統計 -->
+    <div id="pane-stat">
+      <div class="stat-grid">
+        <div class="stat"><div class="n" id="s-members">–</div><div class="l">總註冊人數</div></div>
+        <div class="stat"><div class="n g" id="s-today">–</div><div class="l">今日已打卡</div></div>
+        <div class="stat"><div class="n g" id="s-rate">–</div><div class="l">今日打卡率</div></div>
+        <div class="stat"><div class="n a" id="s-day">–</div><div class="l">活動第幾天</div></div>
+      </div>
+      <div class="filters">
+        <select id="st-region" onchange="renderStats()"><option value="">全部區域</option></select>
+        <select id="st-bigc" onchange="renderStats()"><option value="">全部大C</option></select>
+      </div>
+      <div class="scroll"><table id="stat-table"></table></div>
+    </div>
+
+    <!-- 打卡紀錄 -->
+    <div id="pane-rec" style="display:none">
+      <div class="filters">
+        <select id="rc-region" onchange="renderRecords()"><option value="">全部區域</option></select>
+        <select id="rc-bigc" onchange="renderRecords()"><option value="">全部大C</option></select>
+      </div>
+      <div class="scroll"><table id="rec-table"></table></div>
+    </div>
+
+    <!-- 註冊名單 -->
+    <div id="pane-mem" style="display:none">
+      <div class="filters">
+        <select id="mm-region" onchange="renderMembers()"><option value="">全部區域</option></select>
+        <select id="mm-bigc" onchange="renderMembers()"><option value="">全部大C</option></select>
+      </div>
+      <div class="scroll"><table id="mem-table"></table></div>
+    </div>
+
+    <div class="foot"><button class="rowbtn" onclick="reloadAdmin()">🔄 重新整理資料</button></div>
+  </div>
+
+</div>
+
+<!-- Firebase SDK (compat) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+<script>
+/* ==========================================================================
+   ★★★ 設定區：你要改的東西全部在這一段，改完存檔即可 ★★★
+   ========================================================================== */
+
+// (1) Firebase 設定 —— 到 Firebase Console → ⚙專案設定 → 你的網頁應用程式，複製過來
+const firebaseConfig = {
+  apiKey: "AIzaSyAlnzKat2kYAPxXHXjkqgeqeTptr6c0bTg",
+  authDomain: "d-checkin-dc64f.firebaseapp.com",
+  projectId: "d-checkin-dc64f",
+  storageBucket: "d-checkin-dc64f.firebasestorage.app",
+  messagingSenderId: "162164644435",
+  appId: "1:162164644435:web:c9bad640276f5dd9d244a6"
+};
+
+// (2) 管理者密碼（進後台用）。提醒：這是前端密碼，只擋一般夥伴，非機密等級。
+const ADMIN_PASSWORD = "changeme";
+
+// (3) 活動起始日與總天數（用來算「打卡率、活動第幾天」）
+const ACTIVITY_START = "2026-09-01";   // 格式 YYYY-MM-DD，改成你的實際開跑日
+const ACTIVITY_DAYS  = 90;
+
+// (4) ★打卡內容下拉選項（目前是範例，等你確定內容再改這裡）
+const CHECKIN_OPTIONS = [
+  "（範例）已完成今日運動",
+  "（範例）已喝足夠水量",
+  "（範例）已補充今日營養"
+];
+
+// (5) 區域與大C名單（已依你提供的建好，通常不用動）
+const REGIONS = {
+  "北區": ["麗茹大C","桂敏大C","建順大C","王起大C","明智大C","淑惠大C","妏蒨大C","世杰欣妮大C","姍靈誠謙大C","鴻林大C","玉蘭大C","玟蘭大C","婷芝大C","子林大C","香綺大C","映羽大C","佩芬大C"],
+  "桃竹區": ["桃園珉適大C","桃園韋宏大C","新竹聯合大C"],
+  "中區": ["中區淑雯大C","中區珉瑄大C","中區韋宏大C"],
+  "嘉南區": ["嘉義聯合大C","台南珉適大C","台南韋宏大C"],
+  "高雄區": ["高雄珉適大C","高雄韋宏大C","花蓮聯合大C"]
+};
+
+/* ==========================================================================
+   以下為程式邏輯，一般情況不需要修改
+   ========================================================================== */
+
+let db = null;
+const configReady = !firebaseConfig.apiKey.includes("PASTE");
+if (configReady) {
+  try { firebase.initializeApp(firebaseConfig); db = firebase.firestore(); }
+  catch(e){ console.error(e); }
+}
+
+/* ---- 畫面切換 ---- */
+function show(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.getElementById('backBtn').classList.toggle('show', id!=='scr-home' && id!=='scr-setup');
+  window.scrollTo(0,0);
+}
+function goHome(){ resetCheckin(); show('scr-home'); }
+function goRegister(){ resetRegister(); populateRegionSelect(document.getElementById('reg-region')); show('scr-register'); }
+function goCheckin(){ resetCheckin(); populateRegionSelect(document.getElementById('ck-region')); show('scr-checkin'); }
+function goAdmin(){ document.getElementById('admin-pw').value=''; hide('admin-msg'); show(adminOK?'scr-admin':'scr-admin-login'); if(adminOK) reloadAdmin(); }
+
+/* ---- 通用小工具 ---- */
+function populateRegionSelect(sel, includeAll){
+  sel.innerHTML = includeAll ? '<option value="">全部區域</option>' : '<option value="">請選擇區域</option>';
+  Object.keys(REGIONS).forEach(r=>{ const o=document.createElement('option');o.value=r;o.textContent=r;sel.appendChild(o); });
+}
+function fillBigCSelect(sel, region, includeAll){
+  sel.innerHTML = includeAll ? '<option value="">全部大C</option>' : '<option value="">請選擇大C</option>';
+  (REGIONS[region]||[]).forEach(c=>{ const o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o); });
+  sel.disabled = includeAll ? false : !region;
+}
+function fillBigC(prefix){
+  const region=document.getElementById(prefix+'-region').value;
+  fillBigCSelect(document.getElementById(prefix+'-bigc'), region, false);
+  if(prefix==='ck'){ // 打卡：重置後面的名字選單
+    const n=document.getElementById('ck-name'); n.innerHTML='<option value="">請先選大C</option>'; n.disabled=true;
+    document.getElementById('ck-content-wrap').style.display='none';
+    document.getElementById('ck-btn').disabled=true; hide('ck-msg');
+  }
+}
+function msg(id, text, type){ const e=document.getElementById(id); e.textContent=text; e.className='msg '+type; }
+function hide(id){ document.getElementById(id).className='msg'; }
+function todayStr(){ return fmt(new Date()); }
+function fmt(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function parseDate(s){ const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); }
+function dayNumber(ds){ return Math.floor((parseDate(ds)-parseDate(ACTIVITY_START))/86400000)+1; }
+function daysElapsed(){ return Math.min(Math.max(dayNumber(todayStr()),1),ACTIVITY_DAYS); }
+
+/* ================= 註冊 ================= */
+function resetRegister(){
+  document.getElementById('reg-region').value='';
+  const b=document.getElementById('reg-bigc'); b.innerHTML='<option value="">請先選區域</option>'; b.disabled=true;
+  document.getElementById('reg-name').value=''; hide('reg-msg');
+  document.getElementById('reg-btn').disabled=false;
+}
+async function submitRegister(){
+  if(!db) return;
+  const region=document.getElementById('reg-region').value;
+  const bigC=document.getElementById('reg-bigc').value;
+  const name=document.getElementById('reg-name').value.trim();
+  if(!region||!bigC||!name){ msg('reg-msg','請完整填寫區域、大C、姓名','err'); return; }
+  const btn=document.getElementById('reg-btn'); btn.disabled=true; btn.textContent='處理中…';
+  try{
+    const dup=await db.collection('members').where('region','==',region).where('bigC','==',bigC).where('name','==',name).get();
+    if(!dup.empty){
+      msg('reg-msg','這個名字在此大C已經註冊過了，可直接去打卡。','ok');
+      btn.textContent='完成註冊'; btn.disabled=false; return;
+    }
+    await db.collection('members').add({ region, bigC, name, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+    msg('reg-msg','✅ 註冊成功！之後從「我已註冊」進來打卡即可。','ok');
+    btn.textContent='註冊成功'; 
+    setTimeout(goHome, 1500);
+  }catch(e){ console.error(e); msg('reg-msg','發生錯誤，請稍後再試','err'); btn.textContent='完成註冊'; btn.disabled=false; }
+}
+
+/* ================= 打卡 ================= */
+let ckMembers=[];      // 目前大C底下的成員
+let ckSelected=null;   // 選中的成員
+function resetCheckin(){
+  document.getElementById('checkin-form').style.display='';
+  document.getElementById('checkin-done').style.display='none';
+  document.getElementById('ck-region').value='';
+  const b=document.getElementById('ck-bigc'); b.innerHTML='<option value="">請先選區域</option>'; b.disabled=true;
+  const n=document.getElementById('ck-name'); n.innerHTML='<option value="">請先選大C</option>'; n.disabled=true;
+  document.getElementById('ck-content-wrap').style.display='none';
+  document.getElementById('ck-btn').disabled=true; hide('ck-msg');
+  ckSelected=null;
+}
+async function loadMembers(){
+  const region=document.getElementById('ck-region').value;
+  const bigC=document.getElementById('ck-bigc').value;
+  const n=document.getElementById('ck-name');
+  document.getElementById('ck-content-wrap').style.display='none';
+  document.getElementById('ck-btn').disabled=true; ckSelected=null; hide('ck-msg');
+  if(!bigC){ n.innerHTML='<option value="">請先選大C</option>'; n.disabled=true; return; }
+  n.innerHTML='<option value="">讀取中…</option>'; n.disabled=true;
+  try{
+    const snap=await db.collection('members').where('region','==',region).where('bigC','==',bigC).get();
+    ckMembers=snap.docs.map(d=>({id:d.id,...d.data()}));
+    ckMembers.sort((a,b)=>a.name.localeCompare(b.name,'zh-Hant'));
+    if(ckMembers.length===0){ n.innerHTML='<option value="">此大C尚無人註冊</option>'; n.disabled=true; return; }
+    n.innerHTML='<option value="">請選擇你的名字</option>';
+    ckMembers.forEach(m=>{ const o=document.createElement('option');o.value=m.id;o.textContent=m.name;n.appendChild(o); });
+    n.disabled=false;
+  }catch(e){ console.error(e); n.innerHTML='<option value="">讀取失敗</option>'; }
+}
+async function onPickMember(){
+  const id=document.getElementById('ck-name').value;
+  const wrap=document.getElementById('ck-content-wrap');
+  const btn=document.getElementById('ck-btn'); hide('ck-msg');
+  ckSelected=ckMembers.find(m=>m.id===id)||null;
+  if(!ckSelected){ wrap.style.display='none'; btn.disabled=true; return; }
+  // 檢查今天是否已打卡
+  btn.disabled=true;
+  try{
+    const doc=await db.collection('checkins').doc(id+'_'+todayStr()).get();
+    if(doc.exists){
+      wrap.style.display='none';
+      const cnt=await countCheckins(id);
+      showDone(true, ckSelected, cnt);
+      return;
+    }
+    // 未打卡 → 顯示內容選單
+    const c=document.getElementById('ck-content');
+    c.innerHTML='<option value="">請選擇</option>';
+    CHECKIN_OPTIONS.forEach(t=>{ const o=document.createElement('option');o.value=t;o.textContent=t;c.appendChild(o); });
+    wrap.style.display=''; btn.disabled=false;
+  }catch(e){ console.error(e); msg('ck-msg','讀取狀態失敗，請重試','err'); }
+}
+async function countCheckins(memberId){
+  const s=await db.collection('checkins').where('memberId','==',memberId).get();
+  return s.size;
+}
+async function submitCheckin(){
+  if(!ckSelected) return;
+  const content=document.getElementById('ck-content').value;
+  if(!content){ msg('ck-msg','請選擇今日打卡內容','err'); return; }
+  const btn=document.getElementById('ck-btn'); btn.disabled=true; btn.textContent='送出中…';
+  const id=ckSelected.id+'_'+todayStr();
+  try{
+    // 用 create 防止覆蓋：若今天已存在會擋下
+    await db.collection('checkins').doc(id).set({
+      memberId:ckSelected.id, region:ckSelected.region, bigC:ckSelected.bigC, name:ckSelected.name,
+      date:todayStr(), content, createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    const cnt=await countCheckins(ckSelected.id);
+    showDone(false, ckSelected, cnt);
+  }catch(e){ console.error(e); msg('ck-msg','送出失敗，請重試','err'); btn.textContent='送出打卡'; btn.disabled=false; }
+}
+function showDone(already, member, count){
+  document.getElementById('checkin-form').style.display='none';
+  document.getElementById('checkin-done').style.display='';
+  document.getElementById('done-emoji').textContent = already?'👍':'🎉';
+  document.getElementById('done-title').textContent = already?'今天已經打過卡囉':'打卡完成！';
+  document.getElementById('done-who').textContent = member.region+'｜'+member.bigC+'｜'+member.name;
+  document.getElementById('done-count').textContent = count;
+  const pct=Math.min(100, Math.round(count/ACTIVITY_DAYS*100));
+  setTimeout(()=>{ document.getElementById('done-bar').style.width=pct+'%'; }, 100);
+  document.getElementById('ck-btn').textContent='送出打卡';
+}
+
+/* ================= 管理者後台 ================= */
+let adminOK=false;
+let allMembers=[], allCheckins=[];
+function adminLogin(){
+  const pw=document.getElementById('admin-pw').value;
+  if(pw===ADMIN_PASSWORD){ adminOK=true; show('scr-admin'); reloadAdmin(); }
+  else msg('admin-msg','密碼錯誤','err');
+}
+function switchTab(t){
+  ['stat','rec','mem'].forEach(x=>{
+    document.getElementById('tab-'+x).classList.toggle('on',x===t);
+    document.getElementById('pane-'+x).style.display = x===t?'':'none';
+  });
+}
+async function reloadAdmin(){
+  if(!db) return;
+  // 各下拉區域選單
+  ['st','rc','mm'].forEach(p=>{ populateRegionSelect(document.getElementById(p+'-region'), true);
+    document.getElementById(p+'-region').onchange=()=>{ fillBigCSelect(document.getElementById(p+'-bigc'), document.getElementById(p+'-region').value, true); rerenderAll(); };
+    fillBigCSelect(document.getElementById(p+'-bigc'), '', true);
+    document.getElementById(p+'-bigc').onchange=rerenderAll;
+  });
+  document.getElementById('stat-table').innerHTML='<tr><td class="loading">讀取中…</td></tr>';
+  try{
+    const [mSnap,cSnap]=await Promise.all([ db.collection('members').get(), db.collection('checkins').get() ]);
+    allMembers=mSnap.docs.map(d=>({id:d.id,...d.data()}));
+    allCheckins=cSnap.docs.map(d=>({id:d.id,...d.data()}));
+    rerenderAll();
+  }catch(e){ console.error(e); document.getElementById('stat-table').innerHTML='<tr><td class="empty">讀取失敗</td></tr>'; }
+}
+function rerenderAll(){ renderStats(); renderRecords(); renderMembers(); }
+
+function applyFilter(list, region, bigC){
+  return list.filter(x=>(!region||x.region===region)&&(!bigC||x.bigC===bigC));
+}
+/* 連續天數：從今天往回數，連續有打卡的天數 */
+function streak(dateSet){
+  let s=0; let d=new Date();
+  for(;;){ if(dateSet.has(fmt(d))){ s++; d.setDate(d.getDate()-1);} else break; }
+  return s;
+}
+function renderStats(){
+  const region=document.getElementById('st-region').value, bigC=document.getElementById('st-bigc').value;
+  const members=applyFilter(allMembers, region, bigC);
+  const today=todayStr();
+  // 頂部四格（全體，不受篩選影響的整體數字）
+  const todaySet=new Set(allCheckins.filter(c=>c.date===today).map(c=>c.memberId));
+  document.getElementById('s-members').textContent=allMembers.length;
+  document.getElementById('s-today').textContent=todaySet.size;
+  document.getElementById('s-rate').textContent=allMembers.length? Math.round(todaySet.size/allMembers.length*100)+'%':'0%';
+  document.getElementById('s-day').textContent='第 '+daysElapsed()+' 天';
+  // 每人明細
+  const elapsed=daysElapsed();
+  const byMember={};
+  allCheckins.forEach(c=>{ (byMember[c.memberId]=byMember[c.memberId]||new Set()).add(c.date); });
+  const rows=members.map(m=>{
+    const set=byMember[m.id]||new Set();
+    const total=set.size, rate=Math.round(total/elapsed*100), st=streak(set), done=set.has(today);
+    return {m,total,rate,st,done};
+  }).sort((a,b)=>b.total-a.total);
+  let html='<tr><th>姓名</th><th>大C</th><th>累計</th><th>打卡率</th><th>連續</th><th>今日</th></tr>';
+  if(rows.length===0) html+='<tr><td colspan="6" class="empty">沒有符合的資料</td></tr>';
+  rows.forEach(r=>{ html+=`<tr><td>${esc(r.m.name)}</td><td>${esc(r.m.bigC)}</td><td>${r.total}</td><td>${r.rate}%</td><td>${r.st>0?'🔥'+r.st:'–'}</td><td><span class="pill ${r.done?'yes':'no'}">${r.done?'已打':'未打'}</span></td></tr>`; });
+  document.getElementById('stat-table').innerHTML=html;
+}
+function renderRecords(){
+  const region=document.getElementById('rc-region').value, bigC=document.getElementById('rc-bigc').value;
+  let list=applyFilter(allCheckins, region, bigC).sort((a,b)=> b.date.localeCompare(a.date) || a.name.localeCompare(b.name,'zh-Hant'));
+  let html='<tr><th>日期</th><th>姓名</th><th>大C</th><th>內容</th><th>操作</th></tr>';
+  if(list.length===0) html+='<tr><td colspan="5" class="empty">尚無打卡紀錄</td></tr>';
+  list.forEach(c=>{ html+=`<tr><td>${c.date}</td><td>${esc(c.name)}</td><td>${esc(c.bigC)}</td><td>${esc(c.content||'')}</td>
+    <td style="white-space:nowrap">
+      <button class="rowbtn" onclick="moveRecord('${c.id}')">移動</button>
+      <button class="rowbtn del" onclick="delRecord('${c.id}')">刪除</button>
+    </td></tr>`; });
+  document.getElementById('rec-table').innerHTML=html;
+}
+function renderMembers(){
+  const region=document.getElementById('mm-region').value, bigC=document.getElementById('mm-bigc').value;
+  let list=applyFilter(allMembers, region, bigC).sort((a,b)=> a.region.localeCompare(b.region)||a.bigC.localeCompare(b.bigC)||a.name.localeCompare(b.name,'zh-Hant'));
+  let html='<tr><th>姓名</th><th>區域</th><th>大C</th><th>操作</th></tr>';
+  if(list.length===0) html+='<tr><td colspan="4" class="empty">尚無註冊名單</td></tr>';
+  list.forEach(m=>{ html+=`<tr><td>${esc(m.name)}</td><td>${esc(m.region)}</td><td>${esc(m.bigC)}</td>
+    <td><button class="rowbtn del" onclick="delMember('${m.id}','${esc(m.name)}')">刪除</button></td></tr>`; });
+  document.getElementById('mem-table').innerHTML=html;
+}
+async function delRecord(id){
+  if(!confirm('確定刪除這筆打卡紀錄？刪除後該員當天可重新打卡。')) return;
+  await db.collection('checkins').doc(id).delete();
+  allCheckins=allCheckins.filter(c=>c.id!==id); rerenderAll();
+}
+async function moveRecord(id){
+  const rec=allCheckins.find(c=>c.id===id); if(!rec) return;
+  const nd=prompt('把「'+rec.name+'」'+rec.date+' 這筆搬到哪一天？\n請輸入日期格式 YYYY-MM-DD：', rec.date);
+  if(!nd) return;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(nd)){ alert('日期格式不正確，請用 YYYY-MM-DD'); return; }
+  const newId=rec.memberId+'_'+nd;
+  if(newId===id) return;
+  const exists=await db.collection('checkins').doc(newId).get();
+  if(exists.exists){ alert('這個人在 '+nd+' 已經有一筆紀錄了，無法搬過去。\n請先處理該天的紀錄。'); return; }
+  await db.collection('checkins').doc(newId).set({...rec, id:undefined, date:nd});
+  await db.collection('checkins').doc(id).delete();
+  reloadAdmin();
+}
+async function delMember(id, name){
+  if(!confirm('確定刪除註冊者「'+name+'」？\n此人的所有打卡紀錄也會一併刪除，無法復原。')) return;
+  const snap=await db.collection('checkins').where('memberId','==',id).get();
+  const batch=db.batch();
+  snap.docs.forEach(d=>batch.delete(d.ref));
+  batch.delete(db.collection('members').doc(id));
+  await batch.commit();
+  allMembers=allMembers.filter(m=>m.id!==id);
+  allCheckins=allCheckins.filter(c=>c.memberId!==id);
+  rerenderAll();
+}
+function esc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ---- 啟動 ---- */
+if(!configReady){ show('scr-setup'); }
+else{ show('scr-home'); }
+</script>
+</body>
+</html>
