@@ -179,7 +179,8 @@
         <label>4. 今日是否運動 30 分鐘 <span class="req">*</span></label>
         <div class="seg" data-field="ex30"><div class="opt" data-value="有">有</div><div class="opt" data-value="無">無</div></div>
         <label>5. 今日排便次數 <span class="req">*</span></label>
-        <div class="unit"><input type="number" id="ck-bowel-count" inputmode="numeric" placeholder="次數" min="0"><span class="u">次</span></div>
+        <div class="unit"><input type="number" id="ck-bowel-count" inputmode="numeric" placeholder="次數" min="0" oninput="toggleBowelType()"><span class="u">次</span></div>
+        <div id="ck-bowel-type-wrap" style="display:none">
         <label>排便屬於哪一型 <span class="req">*</span></label>
         <details class="bristol"><summary>點我看分類圖（布里斯托分類）</summary>
           <div class="body"><div class="bwrap" id="bristol-svg"></div>
@@ -195,6 +196,7 @@
           <option value="第6型">第6型 — 鬆軟糊狀（偏腹瀉）</option>
           <option value="第7型">第7型 — 液態水狀（腹瀉）</option>
         </select>
+        </div>
         <label>6. 今日有無吃到 NG 食物 <span class="req">*</span> <span class="tip">（沒吃請選「沒有NG」；有吃可複選）</span></label>
         <div class="chips ng" data-field="ng">
           <div class="opt none" data-value="沒有NG">沒有NG</div>
@@ -384,6 +386,7 @@ function resetCkQuestions(){
   ['supp','water','ex30'].forEach(segReset);
   document.querySelectorAll('.chips[data-field="ng"] .opt').forEach(o=>o.classList.remove('on'));
   ['ck-bed','ck-wake','ck-bowel-count','ck-bowel-type'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('ck-bowel-type-wrap').style.display='none';
   document.getElementById('ck-sleephint').textContent=''; hide('ck-msg');
   document.getElementById('ck-btn').disabled=false; document.getElementById('ck-btn').textContent='送出今日打卡';
 }
@@ -415,7 +418,8 @@ async function submitCheckin(){
   const supp=segVal('supp'),water=segVal('water'),ex30=segVal('ex30');
   const bed=document.getElementById('ck-bed').value,wake=document.getElementById('ck-wake').value;
   const bc=document.getElementById('ck-bowel-count').value,bt=document.getElementById('ck-bowel-type').value,ng=chipVals('ng');
-  if(!supp||!water||!bed||!wake||!ex30||bc===''||!bt||ng.length===0){ msg('ck-msg','請把有 * 的題目都填完（NG 食物沒吃請選「沒有NG」）','err'); return; }
+  const needType = bc!=='' && Number(bc)>0;
+  if(!supp||!water||!bed||!wake||!ex30||bc===''||(needType&&!bt)||ng.length===0){ msg('ck-msg','請把有 * 的題目都填完（排便有次數才要選型態；NG 沒吃請選「沒有NG」）','err'); return; }
   const btn=document.getElementById('ck-btn'); btn.disabled=true; btn.textContent='送出中…';
   const cid=ckSelected.id+'_'+todayStr();
   try{
@@ -437,6 +441,14 @@ function showDone(already,member,count){
   const mile=milestoneFor(todayStr()),box=document.getElementById('done-milestone');
   if(mile){ box.innerHTML=mile; box.style.display=''; } else box.style.display='none';
   window.scrollTo(0,0);
+}
+function toggleBowelType(){
+  const bc=document.getElementById('ck-bowel-count').value;
+  const wrap=document.getElementById('ck-bowel-type-wrap');
+  const show = bc!=='' && Number(bc)>0;
+  wrap.style.display = show ? '' : 'none';
+  if(!show) document.getElementById('ck-bowel-type').value='';
+  if(show) drawBristol();
 }
 function drawBristol(){
   const el=document.getElementById('bristol-svg'); if(!el||el.dataset.done)return;
