@@ -170,15 +170,13 @@
         <div class="seg" data-field="supp"><div class="opt" data-value="有">有</div><div class="opt" data-value="無">無</div></div>
         <label>2. 今日是否喝足夠水量 <span class="req">*</span> <span class="tip">（建議：體重 × 40cc）</span></label>
         <div class="seg" data-field="water"><div class="opt" data-value="有">有</div><div class="opt" data-value="無">無</div></div>
-        <label>3. 睡眠 <span class="req">*</span> <span class="tip">（昨日幾點睡 / 今日幾點起）</span></label>
-        <div class="two">
-          <div><input type="time" id="ck-bed" onchange="calcSleep('ck')"><div style="text-align:center;font-size:12px;color:var(--muted);margin-top:4px">昨晚就寢</div></div>
-          <div><input type="time" id="ck-wake" onchange="calcSleep('ck')"><div style="text-align:center;font-size:12px;color:var(--muted);margin-top:4px">今早起床</div></div>
-        </div>
-        <div class="autohint" id="ck-sleephint"></div>
-        <label>4. 今日是否運動 30 分鐘 <span class="req">*</span></label>
+        <label>3. 昨晚是否 12 點前入睡 <span class="req">*</span></label>
+        <div class="seg" data-field="sleep12"><div class="opt" data-value="有">有</div><div class="opt" data-value="無">無</div></div>
+        <label>4. 昨晚是否睡滿 7 小時 <span class="req">*</span></label>
+        <div class="seg" data-field="sleep7"><div class="opt" data-value="有">有</div><div class="opt" data-value="無">無</div></div>
+        <label>5. 今日是否運動 30 分鐘 <span class="req">*</span></label>
         <div class="seg" data-field="ex30"><div class="opt" data-value="有">有</div><div class="opt" data-value="無">無</div></div>
-        <label>5. 今日排便次數 <span class="req">*</span></label>
+        <label>6. 今日排便次數 <span class="req">*</span></label>
         <div class="unit"><input type="number" id="ck-bowel-count" inputmode="numeric" placeholder="次數" min="0" oninput="toggleBowelType()"><span class="u">次</span></div>
         <div id="ck-bowel-type-wrap" style="display:none">
         <label>排便屬於哪一型 <span class="req">*</span></label>
@@ -197,7 +195,7 @@
           <option value="第7型">第7型 — 液態水狀（腹瀉）</option>
         </select>
         </div>
-        <label>6. 今日有無吃到 NG 食物 <span class="req">*</span> <span class="tip">（沒吃請選「沒有NG」；有吃可複選）</span></label>
+        <label>7. 今日有無吃到 NG 食物 <span class="req">*</span> <span class="tip">（沒吃請選「沒有NG」；有吃可複選）</span></label>
         <div class="chips ng" data-field="ng">
           <div class="opt none" data-value="沒有NG">沒有NG</div>
           <div class="opt" data-value="酒類飲品">酒類飲品</div><div class="opt" data-value="蛋糕甜點">蛋糕甜點</div>
@@ -383,11 +381,11 @@ function resetCheckin(){
   document.getElementById('ck-questions').style.display='none'; resetCkQuestions(); hide('ck-pick-msg'); ckSelected=null; drawBristol();
 }
 function resetCkQuestions(){
-  ['supp','water','ex30'].forEach(segReset);
+  ['supp','water','sleep12','sleep7','ex30'].forEach(segReset);
   document.querySelectorAll('.chips[data-field="ng"] .opt').forEach(o=>o.classList.remove('on'));
-  ['ck-bed','ck-wake','ck-bowel-count','ck-bowel-type'].forEach(id=>document.getElementById(id).value='');
+  ['ck-bowel-count','ck-bowel-type'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('ck-bowel-type-wrap').style.display='none';
-  document.getElementById('ck-sleephint').textContent=''; hide('ck-msg');
+  hide('ck-msg');
   document.getElementById('ck-btn').disabled=false; document.getElementById('ck-btn').textContent='送出今日打卡';
 }
 async function loadMembers(){
@@ -416,16 +414,16 @@ function countCheckins(id){ return db.collection('checkin_days').where('memberId
 async function submitCheckin(){
   if(!ckSelected)return;
   const supp=segVal('supp'),water=segVal('water'),ex30=segVal('ex30');
-  const bed=document.getElementById('ck-bed').value,wake=document.getElementById('ck-wake').value;
+  const sleep12=segVal('sleep12'),sleep7=segVal('sleep7');
   const bc=document.getElementById('ck-bowel-count').value,bt=document.getElementById('ck-bowel-type').value,ng=chipVals('ng');
   const needType = bc!=='' && Number(bc)>0;
-  if(!supp||!water||!bed||!wake||!ex30||bc===''||(needType&&!bt)||ng.length===0){ msg('ck-msg','請把有 * 的題目都填完（排便有次數才要選型態；NG 沒吃請選「沒有NG」）','err'); return; }
+  if(!supp||!water||!sleep12||!sleep7||!ex30||bc===''||(needType&&!bt)||ng.length===0){ msg('ck-msg','請把有 * 的題目都填完（排便有次數才要選型態；NG 沒吃請選「沒有NG」）','err'); return; }
   const btn=document.getElementById('ck-btn'); btn.disabled=true; btn.textContent='送出中…';
   const cid=ckSelected.id+'_'+todayStr();
   try{
     const batch=db.batch();
     batch.set(db.collection('checkin_days').doc(cid),{memberId:ckSelected.id,region:ckSelected.region,bigC:ckSelected.bigC,name:ckSelected.name,date:todayStr(),createdAt:ST()});
-    batch.set(db.collection('checkin_private').doc(cid),{memberId:ckSelected.id,date:todayStr(),supplement:supp,water,bedTime:bed,wakeTime:wake,sleepHours:sleepHours(bed,wake),exercise30:ex30,bowelCount:Number(bc),bowelType:bt,ngFoods:ng,createdAt:ST()});
+    batch.set(db.collection('checkin_private').doc(cid),{memberId:ckSelected.id,date:todayStr(),supplement:supp,water,sleepBefore12:sleep12,sleep7hr:sleep7,exercise30:ex30,bowelCount:Number(bc),bowelType:bt,ngFoods:ng,createdAt:ST()});
     await batch.commit();
     const cnt=await countCheckins(ckSelected.id); showDone(false,ckSelected,cnt);
   }catch(e){ console.error(e); msg('ck-msg','送出失敗，請重試','err'); btn.textContent='送出今日打卡'; btn.disabled=false; }
@@ -519,7 +517,7 @@ function renderRecords(){
   const list=filt(allDays,r,b).sort((a,b)=>b.date.localeCompare(a.date)||a.name.localeCompare(b.name,'zh-Hant'));
   let h='<tr><th>日期</th><th>姓名</th><th>當日內容</th><th>操作</th></tr>';
   if(!list.length)h+='<tr><td colspan="4" class="empty">尚無打卡紀錄</td></tr>';
-  list.forEach(c=>{ const p=allCkPriv[c.id]||{}; const sum=`營養:${p.supplement||'-'}／水:${p.water||'-'}／運動:${p.exercise30||'-'}<br>睡:${p.sleepHours!=null?p.sleepHours+'h':'-'}／排便:${p.bowelCount!=null?p.bowelCount+'次':'-'} ${esc(p.bowelType||'')}${(p.ngFoods&&p.ngFoods.length)?'<br>NG:'+esc(p.ngFoods.join('、')):''}`;
+  list.forEach(c=>{ const p=allCkPriv[c.id]||{}; const sum=`營養:${p.supplement||'-'}／水:${p.water||'-'}／運動:${p.exercise30||'-'}<br>12點前睡:${p.sleepBefore12||'-'}／睡滿7h:${p.sleep7hr||'-'}／排便:${p.bowelCount!=null?p.bowelCount+'次':'-'} ${esc(p.bowelType||'')}${(p.ngFoods&&p.ngFoods.length)?'<br>NG:'+esc(p.ngFoods.join('、')):''}`;
     h+=`<tr><td>${c.date}</td><td>${esc(c.name)}</td><td style="font-size:12px;color:#4a5a4f">${sum}</td><td style="white-space:nowrap"><button class="rowbtn" onclick="moveRec('${c.id}')">移動</button><button class="rowbtn del" onclick="delRec('${c.id}')">刪除</button></td></tr>`; });
   document.getElementById('rec-table').innerHTML=h;
 }
