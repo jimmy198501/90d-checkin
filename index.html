@@ -89,6 +89,11 @@
   .donut .dl{font-size:12px;color:var(--muted);margin-top:6px}
   #mb-who{color:var(--muted);font-size:14px}
   #mb-pick .btn{margin-top:8px}
+  .thr{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:12px;font-size:13px;color:var(--muted)}
+  .thr-btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 10px;font-size:13px;cursor:pointer;font-family:inherit}
+  .thr-btn.on{background:var(--primary);color:#fff;border-color:var(--primary)}
+  td.hit{background:#E7F4EC;color:var(--primary-d);font-weight:700}
+  .pname{color:var(--primary);text-decoration:underline;cursor:pointer}
 </style>
 </head>
 <body>
@@ -288,7 +293,17 @@
         <div class="stat"><div class="n a" id="s-day">–</div><div class="l">活動第幾天</div></div>
       </div>
       <div class="filters"><select id="st-region"><option value="">全部區域</option></select><select id="st-bigc"><option value="">全部大C</option></select></div>
+      <div class="thr"><span>達標門檻</span><button class="thr-btn on" onclick="setThreshold(0)">不篩選</button><button class="thr-btn" onclick="setThreshold(80)">80%</button><button class="thr-btn" onclick="setThreshold(90)">90%</button><button class="thr-btn" onclick="setThreshold(100)">100%</button></div>
       <div class="scroll"><table id="stat-table"></table></div>
+      <p style="font-size:12px;color:var(--muted);margin:8px 2px 0">點姓名可看個人圖表</p>
+      <div id="person-detail" class="card" style="display:none;margin-top:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center"><h3 id="pd-who" style="margin:0;font-size:16px"></h3><button class="rowbtn" onclick="closePersonDetail()">關閉</button></div>
+        <p style="text-align:center;color:var(--muted);font-size:12px;margin:12px 0 4px">五項完成率</p>
+        <div style="height:200px"><canvas id="pd-bar"></canvas></div>
+        <p style="text-align:center;color:var(--muted);font-size:12px;margin:16px 0 4px">大便型別趨勢（縱軸型別，橫軸第幾天）</p>
+        <div style="height:210px"><canvas id="pd-bowel"></canvas></div>
+        <div id="pd-bowel-note" class="empty" style="display:none">還沒有排便型別資料</div>
+      </div>
     </div>
     <div id="pane-rec" style="display:none">
       <div class="filters"><select id="rc-region"><option value="">全部區域</option></select><select id="rc-bigc"><option value="">全部大C</option></select></div>
@@ -575,6 +590,7 @@ function renderMemberTable(days){
 
 /* ===== 後台（Firebase 登入）===== */
 let adminOK=false, allMembers=[], allPriv={}, allDays=[], allCkPriv={};
+let statThreshold=0, personDaysLookup={}, adminBarChart=null, adminBowelChart=null;
 if(auth){ auth.onAuthStateChanged(u=>{ adminOK=!!u; }); }
 async function adminLogin(){
   if(!auth)return; const email=document.getElementById('admin-email').value.trim(), pw=document.getElementById('admin-pw').value;
@@ -587,7 +603,7 @@ async function adminLogin(){
 function adminLogout(){ if(auth) auth.signOut(); adminOK=false; goHome(); }
 function switchTab(t){ ['stat','rec','mem'].forEach(x=>{ document.getElementById('tab-'+x).classList.toggle('on',x===t); document.getElementById('pane-'+x).style.display=x===t?'':'none'; }); }
 async function reloadAdmin(){
-  if(!db)return;
+  if(!db)return; closePersonDetail();
   ['st','rc','mm'].forEach(p=>{ populateRegion(document.getElementById(p+'-region'),true);
     document.getElementById(p+'-region').onchange=()=>{ fillBigCSel(document.getElementById(p+'-bigc'),document.getElementById(p+'-region').value,true); rerender(); };
     fillBigCSel(document.getElementById(p+'-bigc'),'',true); document.getElementById(p+'-bigc').onchange=rerender; });
@@ -615,13 +631,32 @@ function renderStats(){
   document.getElementById('s-today').textContent=todaySet.size;
   document.getElementById('s-rate').textContent=allMembers.length?Math.round(todaySet.size/allMembers.length*100)+'%':'0%';
   document.getElementById('s-day').textContent='第 '+daysElapsed()+' 天';
-  const el=daysElapsed(),byM={}; allDays.forEach(c=>{(byM[c.memberId]=byM[c.memberId]||new Set()).add(c.date);});
-  const rows=members.map(m=>{ const set=byM[m.id]||new Set(); return {m,total:set.size,rate:Math.round(set.size/el*100),st:streak(set),done:set.has(today)}; }).sort((a,b)=>b.total-a.total);
-  let h='<tr><th>姓名</th><th>大C</th><th>累計</th><th>打卡率</th><th>連續</th><th>今日</th></tr>';
-  if(!rows.length)h+='<tr><td colspan="6" class="empty">沒有符合的資料</td></tr>';
-  rows.forEach(x=>h+=`<tr><td>${esc(x.m.name)}</td><td>${esc(x.m.bigC)}</td><td>${x.total}</td><td>${x.rate}%</td><td>${x.st>0?'🔥'+x.st:'–'}</td><td><span class="pill ${x.done?'yes':'no'}">${x.done?'已打':'未打'}</span></td></tr>`);
+  const byM={}; allDays.forEach(c=>{(byM[c.memberId]=byM[c.memberId]||[]).push(c);}); personDaysLookup=byM;
+  const rows=members.map(m=>{ const ds=(byM[m.id]||[]).slice().sort((a,b)=>a.date.localeCompare(b.date)); const rt=ratesFrom(ds)||{checkin:0,supp:0,water:0,noNG:0,sleep12:0,ex:0}; return {m,cnt:ds.length,rt}; }).sort((a,b)=>b.cnt-a.cnt);
+  const th=statThreshold, cell=v=>(th>0&&v>=th)?('<td class="hit">'+v+'%</td>'):('<td>'+v+'%</td>');
+  let h='<tr><th>姓名</th><th>大C</th><th>打卡</th><th>營養</th><th>喝水</th><th>不吃NG</th><th>12前睡</th><th>運動</th></tr>';
+  if(!rows.length)h+='<tr><td colspan="8" class="empty">沒有符合的資料</td></tr>';
+  rows.forEach(x=>{ h+='<tr><td><a class="pname" onclick="openPersonDetail(\''+x.m.id+'\')">'+esc(x.m.name)+'</a></td><td>'+esc(x.m.bigC)+'</td><td>'+x.cnt+'天</td>'+cell(x.rt.supp)+cell(x.rt.water)+cell(x.rt.noNG)+cell(x.rt.sleep12)+cell(x.rt.ex)+'</tr>'; });
   document.getElementById('stat-table').innerHTML=h;
 }
+function setThreshold(n){ statThreshold=n; const btns=document.querySelectorAll('.thr-btn'); btns.forEach(b=>b.classList.remove('on')); const idx={0:0,80:1,90:2,100:3}[n]; if(idx!=null&&btns[idx]) btns[idx].classList.add('on'); renderStats(); }
+function openPersonDetail(id){
+  const m=allMembers.find(x=>x.id===id); if(!m)return;
+  const ds=(personDaysLookup[id]||[]).slice().sort((a,b)=>a.date.localeCompare(b.date));
+  document.getElementById('pd-who').textContent=m.name+'（'+m.bigC+'）';
+  document.getElementById('person-detail').style.display='';
+  const rt=ratesFrom(ds)||{supp:0,water:0,noNG:0,sleep12:0,ex:0};
+  if(adminBarChart){adminBarChart.destroy();adminBarChart=null;}
+  adminBarChart=new Chart(document.getElementById('pd-bar'),{type:'bar',data:{labels:['營養','喝水','不吃NG','12前睡','運動'],datasets:[{data:[rt.supp,rt.water,rt.noNG,rt.sleep12,rt.ex],backgroundColor:'#1F9E63'}]},options:{responsive:true,maintainAspectRatio:false,scales:{y:{min:0,max:100,ticks:{callback:v=>v+'%'}}},plugins:{legend:{display:false}}}});
+  const labels=ds.map(d=>'第'+dayNumber(d.date)+'天'), data=ds.map(d=>d.bowelType?Number(String(d.bowelType).replace(/[^0-9]/g,'')):null);
+  const note=document.getElementById('pd-bowel-note'), cv=document.getElementById('pd-bowel');
+  if(adminBowelChart){adminBowelChart.destroy();adminBowelChart=null;}
+  if(!data.some(v=>v!=null)){ cv.style.display='none'; note.style.display=''; }
+  else{ cv.style.display=''; note.style.display='none';
+    adminBowelChart=new Chart(cv,{type:'line',data:{labels,datasets:[{data,borderColor:'#1F9E63',backgroundColor:'#1F9E63',tension:.2,spanGaps:false,pointRadius:4}]},options:{responsive:true,maintainAspectRatio:false,scales:{y:{min:1,max:7,ticks:{stepSize:1,callback:v=>'第'+v+'型'}}},plugins:{legend:{display:false}}}}); }
+  document.getElementById('person-detail').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function closePersonDetail(){ const pd=document.getElementById('person-detail'); if(pd)pd.style.display='none'; if(adminBarChart){adminBarChart.destroy();adminBarChart=null;} if(adminBowelChart){adminBowelChart.destroy();adminBowelChart=null;} }
 function renderRecords(){
   const r=document.getElementById('rc-region').value,b=document.getElementById('rc-bigc').value;
   const list=filt(allDays,r,b).sort((a,b)=>b.date.localeCompare(a.date)||a.name.localeCompare(b.name,'zh-Hant'));
