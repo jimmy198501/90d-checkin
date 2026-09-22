@@ -81,6 +81,14 @@
   .setup{background:#FFF7E6;border:1px solid #F0D9A0;border-radius:12px;padding:18px;font-size:14px;line-height:1.7}.setup code{background:#F3E7C4;padding:1px 6px;border-radius:5px}
   .foot{text-align:center;color:var(--muted);font-size:12px;padding-top:22px;margin-top:auto}.loading{text-align:center;color:var(--muted);padding:30px;font-size:14px}
   .lock{font-size:12.5px;color:var(--muted);text-align:center;margin-top:14px;line-height:1.6}
+  .donuts{display:grid;grid-template-columns:repeat(3,1fr);gap:14px 6px;margin-top:8px}
+  .donut{text-align:center}
+  .donut .ring{width:80px;height:80px;border-radius:50%;margin:0 auto;display:grid;place-items:center;position:relative}
+  .donut .ring::before{content:"";position:absolute;inset:9px;border-radius:50%;background:var(--card)}
+  .donut .ring b{position:relative;font-size:17px;font-weight:800;color:var(--ink)}
+  .donut .dl{font-size:12px;color:var(--muted);margin-top:6px}
+  #mb-who{color:var(--muted);font-size:14px}
+  #mb-pick .btn{margin-top:8px}
 </style>
 </head>
 <body>
@@ -99,6 +107,7 @@
       <button class="bigbtn" onclick="goRegister()"><div class="ic">✍️</div><div class="tx"><b>我要註冊</b><span>第一次參加，先填健康基本資料</span></div></button>
       <button class="bigbtn alt" onclick="goCheckin()"><div class="ic">✅</div><div class="tx"><b>我已註冊</b><span>找到自己，完成今日打卡</span></div></button>
     </div>
+    <div style="margin-top:18px"><button class="btn ghost" onclick="goMember()">🔍 查看我的打卡紀錄</button></div>
     <div class="foot"><button class="rowbtn" onclick="goAdmin()" style="opacity:.7">管理者入口</button></div>
   </div>
 
@@ -112,6 +121,8 @@
       <select id="reg-bigc" disabled><option value="">請先選區域</option></select>
       <label>你的全名 <span class="req">*</span></label>
       <input type="text" id="reg-name" placeholder="請填完整姓名" maxlength="20">
+      <label>Email <span class="req">*</span> <span class="tip">（之後用來登入看自己的紀錄）</span></label>
+      <input type="email" id="reg-email" placeholder="你的 Email" autocomplete="email" maxlength="60">
       <label>性別 <span class="req">*</span></label>
       <div class="seg" data-field="gender"><div class="opt" data-value="生理男">生理男</div><div class="opt" data-value="生理女">生理女</div></div>
       <label>出生年月日（西元）<span class="req">*</span></label>
@@ -218,6 +229,37 @@
     </div>
   </div>
 
+  <!-- 會員：查看自己 -->
+  <div class="screen" id="scr-member">
+    <div class="card" id="mb-login">
+      <h2>查看我的打卡紀錄</h2><p class="sub">輸入你註冊時填的 Email</p>
+      <label>Email</label>
+      <input type="email" id="mb-email" placeholder="你的 Email" autocomplete="email" onkeydown="if(event.key==='Enter')memberLogin()">
+      <div class="msg" id="mb-msg"></div>
+      <button class="btn" id="mb-btn" onclick="memberLogin()">登入查看</button>
+      <div id="mb-pick"></div>
+    </div>
+    <div id="mb-dash" style="display:none">
+      <div class="card">
+        <h2 style="margin:0 0 2px;font-size:20px">我的健康進度</h2>
+        <p class="who" id="mb-who" style="margin:0 0 14px"></p>
+        <div class="donuts" id="mb-donuts"></div>
+        <p style="text-align:center;color:var(--muted);font-size:12px;margin-top:10px">完成率＝從你第一天打卡算到今天的比例</p>
+      </div>
+      <div class="card">
+        <h3 style="margin:0 0 10px;font-size:16px">大便型別趨勢</h3>
+        <div style="height:230px"><canvas id="mb-bowel"></canvas></div>
+        <div id="mb-bowel-note" class="empty" style="display:none">還沒有排便型別資料</div>
+        <p style="text-align:center;color:var(--muted);font-size:12px;margin-top:8px">縱軸＝型別(1–7)，橫軸＝你打卡的日子；沒排便的日子會斷開</p>
+      </div>
+      <div class="card">
+        <h3 style="margin:0 0 10px;font-size:16px">每日明細</h3>
+        <div class="scroll"><table id="mb-table"></table></div>
+      </div>
+      <button class="btn ghost" onclick="goMember()">換一個 Email 查詢</button>
+    </div>
+  </div>
+
   <!-- 管理者登入 -->
   <div class="screen" id="scr-admin-login">
     <div class="card">
@@ -263,6 +305,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
 /* ==========================================================================
    ★★★ 設定區 ★★★
@@ -339,7 +382,7 @@ function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;'
 /* ===== 註冊 ===== */
 function resetRegister(){
   document.getElementById('reg-form').style.display=''; document.getElementById('reg-done').style.display='none';
-  ['reg-region','reg-name','reg-birth','reg-height','reg-weight','reg-waist','reg-water','reg-improve','reg-checkup','reg-bed','reg-wake'].forEach(id=>document.getElementById(id).value='');
+  ['reg-region','reg-name','reg-email','reg-birth','reg-height','reg-weight','reg-waist','reg-water','reg-improve','reg-checkup','reg-bed','reg-wake'].forEach(id=>document.getElementById(id).value='');
   const b=document.getElementById('reg-bigc'); b.innerHTML='<option value="">請先選區域</option>'; b.disabled=true;
   ['gender','meals','ex3'].forEach(segReset); document.getElementById('reg-sleephint').textContent=''; hide('reg-msg');
   document.getElementById('reg-btn').disabled=false; document.getElementById('reg-btn').textContent='完成註冊';
@@ -347,16 +390,18 @@ function resetRegister(){
 async function submitRegister(){
   if(!db)return; const g=v=>document.getElementById(v).value;
   const region=g('reg-region'),bigC=g('reg-bigc'),name=g('reg-name').trim(),birth=g('reg-birth');
+  const email=g('reg-email').trim().toLowerCase();
   const gender=segVal('gender'),height=g('reg-height'),weight=g('reg-weight'),waist=g('reg-waist');
   const water=g('reg-water'),bed=g('reg-bed'),wake=g('reg-wake'),meals=segVal('meals'),ex3=segVal('ex3'),improve=g('reg-improve'),checkup=g('reg-checkup');
-  if(!region||!bigC||!name||!gender||!birth||!height||!weight||!waist||!water||!bed||!wake||!meals||!ex3||!improve||!checkup){ msg('reg-msg','請把有 * 的欄位都填完整','err'); window.scrollTo(0,document.body.scrollHeight); return; }
+  if(!region||!bigC||!name||!email||!gender||!birth||!height||!weight||!waist||!water||!bed||!wake||!meals||!ex3||!improve||!checkup){ msg('reg-msg','請把有 * 的欄位都填完整','err'); window.scrollTo(0,document.body.scrollHeight); return; }
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ msg('reg-msg','Email 格式怪怪的，請再確認','err'); return; }
   const birthYear=Number(birth.slice(0,4)), group=groupOf(birthYear);
   const btn=document.getElementById('reg-btn'); btn.disabled=true; btn.textContent='處理中…';
   try{
     const dup=await db.collection('members').where('region','==',region).where('bigC','==',bigC).where('name','==',name).get();
     if(!dup.empty){ msg('reg-msg','這個名字在此大C已註冊過，可直接去打卡。','ok'); btn.textContent='完成註冊'; btn.disabled=false; return; }
     const ref=db.collection('members').doc(); const id=ref.id; const batch=db.batch();
-    batch.set(ref,{region,bigC,name,createdAt:ST()});   // 公開：僅姓名/區域/大C
+    batch.set(ref,{region,bigC,name,email,createdAt:ST()});   // 公開：姓名/區域/大C/Email(登入用)
     batch.set(db.collection('member_private').doc(id),{ // 私有：只有管理者讀得到
       region,bigC,name,gender,birthday:birth,birthYear,group,
       height:Number(height),weight:Number(weight),waist:Number(waist),
@@ -422,8 +467,7 @@ async function submitCheckin(){
   const cid=ckSelected.id+'_'+todayStr();
   try{
     const batch=db.batch();
-    batch.set(db.collection('checkin_days').doc(cid),{memberId:ckSelected.id,region:ckSelected.region,bigC:ckSelected.bigC,name:ckSelected.name,date:todayStr(),createdAt:ST()});
-    batch.set(db.collection('checkin_private').doc(cid),{memberId:ckSelected.id,date:todayStr(),supplement:supp,water,sleepBefore12:sleep12,sleep7hr:sleep7,exercise30:ex30,bowelCount:Number(bc),bowelType:bt,ngFoods:ng,createdAt:ST()});
+    batch.set(db.collection('checkin_days').doc(cid),{memberId:ckSelected.id,region:ckSelected.region,bigC:ckSelected.bigC,name:ckSelected.name,date:todayStr(),supplement:supp,water,sleepBefore12:sleep12,sleep7hr:sleep7,exercise30:ex30,bowelCount:Number(bc),bowelType:bt,ngFoods:ng,createdAt:ST()});
     await batch.commit();
     const cnt=await countCheckins(ckSelected.id); showDone(false,ckSelected,cnt);
   }catch(e){ console.error(e); msg('ck-msg','送出失敗，請重試','err'); btn.textContent='送出今日打卡'; btn.disabled=false; }
@@ -463,6 +507,72 @@ function drawBristol(){
   el.dataset.done='1';
 }
 
+/* ===== 會員：用 Email 看自己 ===== */
+let memberChart=null;
+function goMember(){ document.getElementById('mb-email').value=''; document.getElementById('mb-pick').innerHTML=''; hide('mb-msg'); document.getElementById('mb-dash').style.display='none'; document.getElementById('mb-login').style.display=''; show('scr-member'); }
+async function memberLogin(){
+  if(!db)return; const email=document.getElementById('mb-email').value.trim().toLowerCase();
+  if(!email){ msg('mb-msg','請輸入 Email','err'); return; }
+  const btn=document.getElementById('mb-btn'); btn.disabled=true; btn.textContent='查詢中…'; document.getElementById('mb-pick').innerHTML='';
+  try{
+    const snap=await db.collection('members').where('email','==',email).get();
+    if(snap.empty){ msg('mb-msg','查無這個 Email 的註冊資料，請確認是否填錯','err'); return; }
+    const members=snap.docs.map(d=>({id:d.id,...d.data()}));
+    hide('mb-msg');
+    if(members.length===1){ showMemberDash(members[0]); }
+    else { window._mbList=members;
+      document.getElementById('mb-pick').innerHTML='<p class="sub" style="margin-top:14px">這個 Email 有多位，請選你自己：</p>'+members.map((m,i)=>'<button class="btn ghost" onclick="showMemberDash(window._mbList['+i+'])">'+esc(m.name)+'（'+esc(m.bigC)+'）</button>').join(''); }
+  }catch(e){ console.error(e); msg('mb-msg','查詢失敗，請重試','err'); }
+  finally{ btn.disabled=false; btn.textContent='登入查看'; }
+}
+async function showMemberDash(member){
+  document.getElementById('mb-login').style.display='none';
+  document.getElementById('mb-dash').style.display='';
+  document.getElementById('mb-who').textContent=member.region+'｜'+member.bigC+'｜'+member.name;
+  document.getElementById('mb-donuts').innerHTML='<p class="loading">讀取中…</p>';
+  try{
+    const snap=await db.collection('checkin_days').where('memberId','==',member.id).get();
+    const days=snap.docs.map(d=>d.data()).sort((a,b)=>a.date.localeCompare(b.date));
+    renderMemberStats(days); renderMemberChart(days); renderMemberTable(days);
+  }catch(e){ console.error(e); document.getElementById('mb-donuts').innerHTML='<p class="empty">讀取失敗</p>'; }
+  window.scrollTo(0,0);
+}
+function ratesFrom(days){
+  if(!days.length)return null;
+  const first=days[0].date, endCap=todayStr()<ACTIVITY_END?todayStr():ACTIVITY_END;
+  let elapsed=Math.floor((parseDate(endCap)-parseDate(first))/86400000)+1; if(elapsed<1)elapsed=1;
+  const c=f=>days.filter(f).length;
+  const pct=n=>Math.round(n/elapsed*100);
+  return { checkin:pct(days.length), supp:pct(c(d=>d.supplement==='有')), water:pct(c(d=>d.water==='有')),
+    noNG:pct(c(d=>Array.isArray(d.ngFoods)&&d.ngFoods.includes('沒有NG'))), sleep12:pct(c(d=>d.sleepBefore12==='有')), ex:pct(c(d=>d.exercise30==='有')) };
+}
+function donut(label,pct){ const p=Math.max(0,Math.min(100,pct));
+  return '<div class="donut"><div class="ring" style="background:conic-gradient(var(--primary) 0 '+p+'%, #E6EEDF '+p+'% 100%)"><b>'+p+'%</b></div><div class="dl">'+label+'</div></div>'; }
+function renderMemberStats(days){
+  const r=ratesFrom(days), box=document.getElementById('mb-donuts');
+  if(!r){ box.innerHTML='<p class="empty">還沒有打卡紀錄，先去打卡吧！</p>'; return; }
+  box.innerHTML=[['打卡率',r.checkin],['營養品',r.supp],['喝水達成',r.water],['不吃NG',r.noNG],['12點前睡',r.sleep12],['有運動',r.ex]].map(x=>donut(x[0],x[1])).join('');
+}
+function renderMemberChart(days){
+  const ctx=document.getElementById('mb-bowel'), note=document.getElementById('mb-bowel-note');
+  if(memberChart){ memberChart.destroy(); memberChart=null; }
+  const labels=days.map(d=>'第'+dayNumber(d.date)+'天');
+  const data=days.map(d=>d.bowelType?Number(String(d.bowelType).replace(/[^0-9]/g,'')):null);
+  if(!data.some(v=>v!=null)){ ctx.style.display='none'; note.style.display=''; return; }
+  ctx.style.display=''; note.style.display='none';
+  memberChart=new Chart(ctx,{type:'line',data:{labels,datasets:[{label:'型別',data,borderColor:'#1F9E63',backgroundColor:'#1F9E63',tension:.2,spanGaps:false,pointRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,scales:{y:{min:1,max:7,ticks:{stepSize:1,callback:v=>'第'+v+'型'}}},plugins:{legend:{display:false}}}});
+}
+function yn(v){ return v==='有'?'<span class="pill yes">有</span>':'<span class="pill no">沒有</span>'; }
+function renderMemberTable(days){
+  const list=[...days].sort((a,b)=>b.date.localeCompare(a.date));
+  let h='<tr><th>日期</th><th>營養品</th><th>喝水</th><th>運動</th><th>12點前睡</th><th>不吃NG</th></tr>';
+  if(!list.length)h+='<tr><td colspan="6" class="empty">尚無紀錄</td></tr>';
+  list.forEach(d=>{ const noNG=(Array.isArray(d.ngFoods)&&d.ngFoods.includes('沒有NG'))?'有':'沒有';
+    h+='<tr><td>'+d.date+'</td><td>'+yn(d.supplement)+'</td><td>'+yn(d.water)+'</td><td>'+yn(d.exercise30)+'</td><td>'+yn(d.sleepBefore12)+'</td><td>'+yn(noNG)+'</td></tr>'; });
+  document.getElementById('mb-table').innerHTML=h;
+}
+
 /* ===== 後台（Firebase 登入）===== */
 let adminOK=false, allMembers=[], allPriv={}, allDays=[], allCkPriv={};
 if(auth){ auth.onAuthStateChanged(u=>{ adminOK=!!u; }); }
@@ -483,14 +593,14 @@ async function reloadAdmin(){
     fillBigCSel(document.getElementById(p+'-bigc'),'',true); document.getElementById(p+'-bigc').onchange=rerender; });
   document.getElementById('stat-table').innerHTML='<tr><td class="loading">讀取中…</td></tr>';
   try{
-    const [m,mp,d,cp]=await Promise.all([
+    const [m,mp,d]=await Promise.all([
       db.collection('members').get(), db.collection('member_private').get(),
-      db.collection('checkin_days').get(), db.collection('checkin_private').get()
+      db.collection('checkin_days').get()
     ]);
     allMembers=m.docs.map(x=>({id:x.id,...x.data()}));
     allPriv={}; mp.docs.forEach(x=>allPriv[x.id]=x.data());
     allDays=d.docs.map(x=>({id:x.id,...x.data()}));
-    allCkPriv={}; cp.docs.forEach(x=>allCkPriv[x.id]=x.data());
+    allCkPriv={}; allDays.forEach(x=>allCkPriv[x.id]=x);
     rerender();
   }catch(e){ console.error(e); document.getElementById('stat-table').innerHTML='<tr><td class="empty">讀取失敗（請確認已登入且規則正確）</td></tr>'; }
 }
@@ -531,7 +641,7 @@ function renderMembers(){
   document.getElementById('mem-table').innerHTML=h;
 }
 async function delRec(id){ if(!confirm('確定刪除這筆打卡紀錄？刪除後該員當天可重新打卡。'))return;
-  const batch=db.batch(); batch.delete(db.collection('checkin_days').doc(id)); batch.delete(db.collection('checkin_private').doc(id)); await batch.commit();
+  await db.collection('checkin_days').doc(id).delete();
   allDays=allDays.filter(c=>c.id!==id); delete allCkPriv[id]; rerender(); }
 async function moveRec(id){
   const rec=allDays.find(c=>c.id===id); if(!rec)return;
@@ -541,17 +651,16 @@ async function moveRec(id){
   const ex=await db.collection('checkin_days').doc(newId).get();
   if(ex.exists){ alert('這個人在 '+nd+' 已有一筆紀錄，無法搬過去。請先處理該天的紀錄。'); return; }
   const day={...rec,date:nd}; delete day.id;
-  const priv={...(allCkPriv[id]||{}),date:nd};
   const batch=db.batch();
-  batch.set(db.collection('checkin_days').doc(newId),day); batch.set(db.collection('checkin_private').doc(newId),priv);
-  batch.delete(db.collection('checkin_days').doc(id)); batch.delete(db.collection('checkin_private').doc(id));
+  batch.set(db.collection('checkin_days').doc(newId),day);
+  batch.delete(db.collection('checkin_days').doc(id));
   await batch.commit(); reloadAdmin();
 }
 async function delMember(id,name){
   if(!confirm('確定刪除註冊者「'+name+'」？\n此人所有打卡紀錄也會一併刪除，無法復原。'))return;
   const s=await db.collection('checkin_days').where('memberId','==',id).get();
   const batch=db.batch();
-  s.docs.forEach(d=>{ batch.delete(d.ref); batch.delete(db.collection('checkin_private').doc(d.id)); });
+  s.docs.forEach(d=>{ batch.delete(d.ref); });
   batch.delete(db.collection('members').doc(id)); batch.delete(db.collection('member_private').doc(id));
   await batch.commit();
   allMembers=allMembers.filter(m=>m.id!==id); delete allPriv[id]; allDays=allDays.filter(c=>c.memberId!==id); rerender();
