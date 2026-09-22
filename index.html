@@ -631,16 +631,21 @@ async function repairOldData(){
     const priv=await db.collection('checkin_private').get();
     const docs=priv.docs;
     if(!docs.length){ msg('maint-msg','沒有找到舊資料（checkin_private 是空的），不需要修復。','ok'); return; }
-    let done=0;
+    const KEYS=['memberId','date','supplement','water','sleepBefore12','sleep7hr','exercise30','bowelCount','bowelType','ngFoods'];
+    let done=0, skipped=0;
     for(let i=0;i<docs.length;i+=400){
-      const batch=db.batch();
-      docs.slice(i,i+400).forEach(d=>{ const p=d.data();
-        batch.set(db.collection('checkin_days').doc(d.id),{memberId:p.memberId,date:p.date,supplement:p.supplement,water:p.water,sleepBefore12:p.sleepBefore12,sleep7hr:p.sleep7hr,exercise30:p.exercise30,bowelCount:p.bowelCount,bowelType:p.bowelType,ngFoods:p.ngFoods},{merge:true});
+      const batch=db.batch(); let inBatch=0;
+      docs.slice(i,i+400).forEach(d=>{ const p=d.data(); const obj={};
+        KEYS.forEach(k=>{ if(p[k]!==undefined && p[k]!==null) obj[k]=p[k]; });
+        if(obj.sleepBefore12===undefined && p.bedTime){ const h=parseInt(String(p.bedTime).split(':')[0],10); if(!isNaN(h)) obj.sleepBefore12=(h>=17&&h<=23)?'有':'無'; }
+        if(obj.sleep7hr===undefined && p.sleepHours!=null){ const n=Number(p.sleepHours); if(!isNaN(n)) obj.sleep7hr=(n>=7)?'有':'無'; }
+        if(Object.keys(obj).length){ batch.set(db.collection('checkin_days').doc(d.id),obj,{merge:true}); inBatch++; } else { skipped++; }
       });
-      await batch.commit(); done+=Math.min(400,docs.length-i);
+      if(inBatch) await batch.commit();
+      done+=Math.min(400,docs.length-i);
       msg('maint-msg','修復中… 已處理 '+done+' / '+docs.length,'ok');
     }
-    msg('maint-msg','✅ 修復完成，共補回 '+docs.length+' 筆。請按上方「🔄 重新整理」看結果。','ok');
+    msg('maint-msg','✅ 修復完成，補回 '+(docs.length-skipped)+' 筆'+(skipped?('，'+skipped+' 筆無內容略過'):'')+'。請按上方「🔄 重新整理」看結果。','ok');
     reloadAdmin();
   }catch(e){ console.error(e); msg('maint-msg','修復失敗：'+(e.code||e.message||'')+'（可再按一次重試，已處理的不受影響）','err'); }
 }
