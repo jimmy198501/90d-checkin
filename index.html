@@ -94,6 +94,11 @@
   .thr-btn.on{background:var(--primary);color:#fff;border-color:var(--primary)}
   td.hit{background:#E7F4EC;color:var(--primary-d);font-weight:700}
   .pname{color:var(--primary);text-decoration:underline;cursor:pointer}
+  .thr2{margin-bottom:14px}
+  .thr2 .row{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+  .thr2 .row .nm{width:70px;font-size:13px;flex-shrink:0}
+  .thr2 .row button{border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 12px;font-size:13px;cursor:pointer;font-family:inherit}
+  .thr2 .row button.on{background:var(--primary);color:#fff;border-color:var(--primary)}
 </style>
 </head>
 <body>
@@ -293,7 +298,13 @@
         <div class="stat"><div class="n a" id="s-day">–</div><div class="l">活動第幾天</div></div>
       </div>
       <div class="filters"><select id="st-region"><option value="">全部區域</option></select><select id="st-bigc"><option value="">全部大C</option></select></div>
-      <div class="thr"><span>達標門檻</span><button class="thr-btn on" onclick="setThreshold(0)">不篩選</button><button class="thr-btn" onclick="setThreshold(80)">80%</button><button class="thr-btn" onclick="setThreshold(90)">90%</button><button class="thr-btn" onclick="setThreshold(100)">100%</button></div>
+      <div class="thr2"><div style="font-size:12px;color:var(--muted);margin-bottom:8px">各項達標門檻（點一下設定，再點取消；達標的格子會標綠）</div>
+      <div class="row" data-item="supp"><span class="nm">營養品</span><button onclick="setItemThr('supp',80)">80%</button><button onclick="setItemThr('supp',90)">90%</button><button onclick="setItemThr('supp',100)">100%</button></div>
+      <div class="row" data-item="water"><span class="nm">喝水</span><button onclick="setItemThr('water',80)">80%</button><button onclick="setItemThr('water',90)">90%</button><button onclick="setItemThr('water',100)">100%</button></div>
+      <div class="row" data-item="noNG"><span class="nm">不吃NG</span><button onclick="setItemThr('noNG',80)">80%</button><button onclick="setItemThr('noNG',90)">90%</button><button onclick="setItemThr('noNG',100)">100%</button></div>
+      <div class="row" data-item="sleep12"><span class="nm">12點前睡</span><button onclick="setItemThr('sleep12',80)">80%</button><button onclick="setItemThr('sleep12',90)">90%</button><button onclick="setItemThr('sleep12',100)">100%</button></div>
+      <div class="row" data-item="ex"><span class="nm">運動</span><button onclick="setItemThr('ex',80)">80%</button><button onclick="setItemThr('ex',90)">90%</button><button onclick="setItemThr('ex',100)">100%</button></div>
+      </div>
       <div class="scroll"><table id="stat-table"></table></div>
       <p style="font-size:12px;color:var(--muted);margin:8px 2px 0">點姓名可看個人圖表</p>
       <div id="person-detail" class="card" style="display:none;margin-top:14px">
@@ -578,7 +589,7 @@ function renderMemberStats(days){
 function renderMemberChart(days){
   const ctx=document.getElementById('mb-bowel'), note=document.getElementById('mb-bowel-note');
   if(memberChart){ memberChart.destroy(); memberChart=null; }
-  const labels=days.map(d=>'第'+dayNumber(d.date)+'天');
+  const labels=days.map((d,i)=>'第'+(i+1)+'天');
   const data=days.map(d=>d.bowelType?Number(String(d.bowelType).replace(/[^0-9]/g,'')):null);
   if(!data.some(v=>v!=null)){ ctx.style.display='none'; note.style.display=''; return; }
   ctx.style.display=''; note.style.display='none';
@@ -597,7 +608,7 @@ function renderMemberTable(days){
 
 /* ===== 後台（Firebase 登入）===== */
 let adminOK=false, allMembers=[], allPriv={}, allDays=[], allCkPriv={};
-let statThreshold=0, personDaysLookup={}, adminBarChart=null, adminBowelChart=null;
+let statThresholds={supp:0,water:0,noNG:0,sleep12:0,ex:0}, personDaysLookup={}, adminBarChart=null, adminBowelChart=null;
 if(auth){ auth.onAuthStateChanged(u=>{ adminOK=!!u; }); }
 async function adminLogin(){
   if(!auth)return; const email=document.getElementById('admin-email').value.trim(), pw=document.getElementById('admin-pw').value;
@@ -682,13 +693,15 @@ function renderStats(){
   document.getElementById('s-day').textContent='第 '+daysElapsed()+' 天';
   const byM={}; allDays.forEach(c=>{(byM[c.memberId]=byM[c.memberId]||[]).push(c);}); personDaysLookup=byM;
   const rows=members.map(m=>{ const ds=(byM[m.id]||[]).slice().sort((a,b)=>a.date.localeCompare(b.date)); const rt=ratesFrom(ds)||{checkin:0,supp:0,water:0,noNG:0,sleep12:0,ex:0}; return {m,cnt:ds.length,rt}; }).sort((a,b)=>b.cnt-a.cnt);
-  const th=statThreshold, cell=v=>(th>0&&v>=th)?('<td class="hit">'+v+'%</td>'):('<td>'+v+'%</td>');
-  let h='<tr><th>姓名</th><th>大C</th><th>打卡</th><th>營養</th><th>喝水</th><th>不吃NG</th><th>12前睡</th><th>運動</th></tr>';
+  const cell=(item,v)=>{ const t=statThresholds[item]; return (t>0&&v>=t)?('<td class="hit">'+v+'%</td>'):('<td>'+v+'%</td>'); };
+  const hdr=(nm,item)=>{ const t=statThresholds[item]; return '<th>'+nm+(t?'<br><span style="color:var(--primary);font-size:10px">≥'+t+'%</span>':'')+'</th>'; };
+  let h='<tr><th>姓名</th><th>大C</th><th>打卡</th>'+hdr('營養','supp')+hdr('喝水','water')+hdr('不吃NG','noNG')+hdr('12前睡','sleep12')+hdr('運動','ex')+'</tr>';
   if(!rows.length)h+='<tr><td colspan="8" class="empty">沒有符合的資料</td></tr>';
-  rows.forEach(x=>{ h+='<tr><td><a class="pname" onclick="openPersonDetail(\''+x.m.id+'\')">'+esc(x.m.name)+'</a></td><td>'+esc(x.m.bigC)+'</td><td>'+x.cnt+'天</td>'+cell(x.rt.supp)+cell(x.rt.water)+cell(x.rt.noNG)+cell(x.rt.sleep12)+cell(x.rt.ex)+'</tr>'; });
+  rows.forEach(x=>{ h+='<tr><td><a class="pname" onclick="openPersonDetail(\''+x.m.id+'\')">'+esc(x.m.name)+'</a></td><td>'+esc(x.m.bigC)+'</td><td>'+x.cnt+'天</td>'+cell('supp',x.rt.supp)+cell('water',x.rt.water)+cell('noNG',x.rt.noNG)+cell('sleep12',x.rt.sleep12)+cell('ex',x.rt.ex)+'</tr>'; });
   document.getElementById('stat-table').innerHTML=h;
 }
-function setThreshold(n){ statThreshold=n; const btns=document.querySelectorAll('.thr-btn'); btns.forEach(b=>b.classList.remove('on')); const idx={0:0,80:1,90:2,100:3}[n]; if(idx!=null&&btns[idx]) btns[idx].classList.add('on'); renderStats(); }
+function setItemThr(item,v){ statThresholds[item]=(statThresholds[item]===v)?0:v; updateThrButtons(); renderStats(); }
+function updateThrButtons(){ document.querySelectorAll('.thr2 .row').forEach(function(row){ const item=row.dataset.item; row.querySelectorAll('button').forEach(function(b){ const bv=Number(b.textContent.replace('%','')); b.classList.toggle('on', statThresholds[item]===bv); }); }); }
 function openPersonDetail(id){
   const m=allMembers.find(x=>x.id===id); if(!m)return;
   const ds=(personDaysLookup[id]||[]).slice().sort((a,b)=>a.date.localeCompare(b.date));
@@ -697,7 +710,7 @@ function openPersonDetail(id){
   const rt=ratesFrom(ds)||{supp:0,water:0,noNG:0,sleep12:0,ex:0};
   if(adminBarChart){adminBarChart.destroy();adminBarChart=null;}
   adminBarChart=new Chart(document.getElementById('pd-bar'),{type:'bar',data:{labels:['營養','喝水','不吃NG','12前睡','運動'],datasets:[{data:[rt.supp,rt.water,rt.noNG,rt.sleep12,rt.ex],backgroundColor:'#1F9E63'}]},options:{responsive:true,maintainAspectRatio:false,scales:{y:{min:0,max:100,ticks:{callback:v=>v+'%'}}},plugins:{legend:{display:false}}}});
-  const labels=ds.map(d=>'第'+dayNumber(d.date)+'天'), data=ds.map(d=>d.bowelType?Number(String(d.bowelType).replace(/[^0-9]/g,'')):null);
+  const labels=ds.map((d,i)=>'第'+(i+1)+'天'), data=ds.map(d=>d.bowelType?Number(String(d.bowelType).replace(/[^0-9]/g,'')):null);
   const note=document.getElementById('pd-bowel-note'), cv=document.getElementById('pd-bowel');
   if(adminBowelChart){adminBowelChart.destroy();adminBowelChart=null;}
   if(!data.some(v=>v!=null)){ cv.style.display='none'; note.style.display=''; }
