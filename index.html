@@ -313,7 +313,14 @@
       <div class="filters"><select id="mm-region"><option value="">全部區域</option></select><select id="mm-bigc"><option value="">全部大C</option></select></div>
       <div class="scroll"><table id="mem-table"></table></div>
     </div>
-    <div class="foot"><button class="rowbtn" onclick="reloadAdmin()">🔄 重新整理</button> <button class="rowbtn" onclick="adminLogout()">登出</button></div>
+    <div class="foot"><button class="rowbtn" onclick="reloadAdmin()">🔄 重新整理</button> <button class="rowbtn" onclick="adminLogout()">登出</button> <button class="rowbtn" onclick="var m=document.getElementById('maint');m.style.display=m.style.display==='none'?'':'none'">🛠 資料維護</button></div>
+    <div id="maint" class="card" style="display:none;margin-top:10px">
+      <h3 style="margin:0 0 8px;font-size:15px">🛠 資料維護</h3>
+      <p style="font-size:12.5px;color:var(--muted);margin:0 0 12px;line-height:1.6">先按①下載備份存到電腦，再按②修復。修復會把舊的打卡細節補回新版讀取的位置，<b>只新增、不刪除</b>任何資料。</p>
+      <button class="btn" onclick="downloadBackup()">① 下載完整備份</button>
+      <button class="btn ghost" style="margin-top:10px" onclick="repairOldData()">② 修復舊打卡資料</button>
+      <div class="msg" id="maint-msg"></div>
+    </div>
   </div>
 </div>
 
@@ -599,6 +606,43 @@ async function adminLogin(){
   try{ await auth.signInWithEmailAndPassword(email,pw); adminOK=true; document.getElementById('admin-pw').value=''; show('scr-admin'); reloadAdmin(); }
   catch(e){ msg('admin-msg','登入失敗，請確認帳號密碼','err'); }
   finally{ btn.disabled=false; btn.textContent='登入'; }
+}
+async function downloadBackup(){
+  if(!db)return; msg('maint-msg','讀取中，請稍候…','ok');
+  try{
+    const cols=['members','member_private','checkin_days','checkin_private','checkins'];
+    const out={exportedAt:new Date().toISOString()};
+    for(const c of cols){
+      try{ const s=await db.collection(c).get(); out[c]=s.docs.map(d=>Object.assign({id:d.id},d.data())); }
+      catch(e){ out[c]='(讀取失敗: '+(e.code||e.message)+')'; }
+    }
+    const blob=new Blob([JSON.stringify(out,null,2)],{type:'application/json'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download='cong-chang-backup-'+todayStr()+'.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+    const counts=cols.map(c=>c+':'+(Array.isArray(out[c])?out[c].length:'?')).join('、');
+    msg('maint-msg','✅ 備份已下載到你的電腦。筆數 → '+counts,'ok');
+  }catch(e){ console.error(e); msg('maint-msg','備份失敗：'+(e.message||''),'err'); }
+}
+async function repairOldData(){
+  if(!db)return;
+  if(!confirm('確定要修復嗎？\n會把舊的打卡細節補進新版讀取的位置（只新增欄位、不刪除任何東西）。\n建議先按①下載備份。'))return;
+  msg('maint-msg','修復中，請稍候，不要關掉頁面…','ok');
+  try{
+    const priv=await db.collection('checkin_private').get();
+    const docs=priv.docs;
+    if(!docs.length){ msg('maint-msg','沒有找到舊資料（checkin_private 是空的），不需要修復。','ok'); return; }
+    let done=0;
+    for(let i=0;i<docs.length;i+=400){
+      const batch=db.batch();
+      docs.slice(i,i+400).forEach(d=>{ const p=d.data();
+        batch.set(db.collection('checkin_days').doc(d.id),{memberId:p.memberId,date:p.date,supplement:p.supplement,water:p.water,sleepBefore12:p.sleepBefore12,sleep7hr:p.sleep7hr,exercise30:p.exercise30,bowelCount:p.bowelCount,bowelType:p.bowelType,ngFoods:p.ngFoods},{merge:true});
+      });
+      await batch.commit(); done+=Math.min(400,docs.length-i);
+      msg('maint-msg','修復中… 已處理 '+done+' / '+docs.length,'ok');
+    }
+    msg('maint-msg','✅ 修復完成，共補回 '+docs.length+' 筆。請按上方「🔄 重新整理」看結果。','ok');
+    reloadAdmin();
+  }catch(e){ console.error(e); msg('maint-msg','修復失敗：'+(e.code||e.message||'')+'（可再按一次重試，已處理的不受影響）','err'); }
 }
 function adminLogout(){ if(auth) auth.signOut(); adminOK=false; goHome(); }
 function switchTab(t){ ['stat','rec','mem'].forEach(x=>{ document.getElementById('tab-'+x).classList.toggle('on',x===t); document.getElementById('pane-'+x).style.display=x===t?'':'none'; }); }
